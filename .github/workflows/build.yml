@@ -1,0 +1,103 @@
+name: build
+
+on:
+  schedule:
+    - cron:  '42 6 * * *'
+
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    outputs:
+      tag: ${{ steps.result.outputs.tag }}
+
+    steps:
+      - name: Get upstream tag
+        uses: oprypin/find-latest-tag@v1
+        id: upstream_tag
+        with:
+          repository: rclone/rclone
+          releases-only: true
+
+      - name: Upstream tag ${{ steps.upstream_tag.outputs.tag }}
+        run: echo "Upstream tag ${{ steps.upstream_tag.outputs.tag }}"
+
+      - name: Get downstream tag
+        uses: oprypin/find-latest-tag@v1
+        id: downstream_tag
+        with:
+          repository: ${{ github.repository }}
+
+      - name: Downstream tag ${{ steps.downstream_tag.outputs.tag }}
+        run: echo "Downstream tag ${{ steps.downstream_tag.outputs.tag }}"
+
+      - name: Result
+        id: result
+        run: |
+          if [[ "${{ steps.upstream_tag.outputs.tag }}" == "${{ steps.downstream_tag.outputs.tag }}" ]]
+          then
+            echo 'Build not required.'
+          else
+            echo 'Build is required.'
+            echo tag=${{ steps.upstream_tag.outputs.tag }} >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    runs-on: windows-latest
+    needs: check
+    if: needs.check.outputs.tag != ''
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set version
+        id: version
+        run: |
+          $tag = "${{ needs.check.outputs.tag }}".TrimStart("v")
+          $version = [version]::new($tag)
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "versionMajor=$($version.Major)" >> $env:GITHUB_OUTPUT
+          echo "versionMinor=$($version.Minor)" >> $env:GITHUB_OUTPUT
+          echo "versionBuild=$($version.Build)" >> $env:GITHUB_OUTPUT
+
+      - name: Setup wix
+        run: echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" |Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Download rclone
+        run: |
+          gh.exe release download ${{ needs.check.outputs.tag }} --pattern '*-windows-amd64.zip' --repo rclone/rclone
+          Get-ChildItem
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract rclone
+        run: |
+          New-Item -Name tmp -ItemType Directory -ErrorAction Stop
+          Expand-Archive -Path '*-windows-amd64.zip' -DestinationPath tmp -ErrorAction Stop
+          Get-ChildItem -Path tmp -Recurse
+          New-Item -Name build -ItemType Directory -ErrorAction Stop
+          Get-ChildItem -Path tmp -Include '*.exe','*.html' -Recurse |Move-Item -Destination ./build -ErrorAction Stop
+
+      - name: Harvest rclone
+        run: heat.exe dir build -nologo -ag -cg ProductComponents -dr INSTALLDIR -g1 -srd -sfrag -sreg -var var.ProductSource -o build\Fragment.wxs
+
+      - name: Compile rclone
+        run: candle.exe -nologo -dProductSource=build -dProductVersion="${{ steps.version.outputs.version }}" -out build\ -arch x64 -ext WixUIExtension.dll build\Fragment.wxs src\Product.wxs
+
+      - name: Link rclone
+        run: light.exe -nologo -out rclone.msi -ext WixUIExtension.dll -spdb build\Fragment.wixobj build\Product.wixobj
+
+      - name: Test installer
+        run: |
+          Start-Process msiexec.exe -ArgumentList '/i','rclone.msi','/qn' -Wait -NoNewWindow -ErrorAction Stop
+          $path = Join-Path $env:ProgramFiles 'rclone\rclone.exe'
+          & $path version
+
+      - name: Publish release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: rclone.msi
+          tag: ${{ needs.check.outputs.tag }}
+          body: Rclone Windows build packaged as an msi.

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+<Product Id="*"
+         Name="rclone"
+         Language="1033"
+         Version="$(var.ProductVersion)"
+         Manufacturer="https://rclone.org"
+         UpgradeCode="1630521d-062d-4ae5-b690-b676c39311a2">
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Platform="x64"
+             InstallPrivileges="elevated"
+             Description="Rclone is a command line program to manage files on cloud storage."
+             Comments="rclone v$(var.ProductVersion)" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <Media Id="1" Cabinet="Data.cab" EmbedCab="yes" CompressionLevel="high" />
+
+    <Feature Id="Product"
+             Absent="disallow"
+             ConfigurableDirectory="INSTALLDIR"
+             Description="Rclone for Windows"
+             Display="expand"
+             Title="Rclone">
+      <ComponentGroupRef Id="ProductComponents" />
+      <Feature Id="EnvironmentPath"
+               Description="Adds rclone to the system path."
+               Title="Update system path"
+               Level="2">
+        <ComponentRef Id="EnvironmentPathComponent" />
+      </Feature>
+    </Feature>
+
+    <UI>
+      <UIRef Id="WixUI_FeatureTree" />
+
+      <!-- Remove LicenseAgreementDlg. -->
+      <Publish Dialog="WelcomeDlg"
+               Control="Next"
+               Event="NewDialog"
+               Value="CustomizeDlg"
+               Order="99">NOT Installed</Publish>
+      <Publish Dialog="CustomizeDlg"
+               Control="Back"
+               Event="NewDialog"
+               Value="WelcomeDlg"
+               Order="99">NOT Installed</Publish>
+    </UI>
+
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+  </Product>
+
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="Rclone" />
+      </Directory>
+    </Directory>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="TARGETDIR">
+      <Component Id="EnvironmentPathComponent" Guid="0643d537-f24b-4a0a-9f25-9ae15efc2b78">
+        <Environment Id="UpdatePath"
+                     Name="PATH"
+                     Action="set"
+                     Permanent="no"
+                     System="yes"
+                     Part="last"
+                     Value="[INSTALLDIR]" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>
