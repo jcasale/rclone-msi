@@ -2,7 +2,7 @@ name: build
 
 on:
   schedule:
-    - cron:  '42 6 * * *'
+    - cron: "42 6 * * *"
 
   workflow_dispatch:
 
@@ -27,6 +27,7 @@ jobs:
       - name: Get downstream tag
         uses: oprypin/find-latest-tag@v1
         id: downstream_tag
+        continue-on-error: true
         with:
           repository: ${{ github.repository }}
 
@@ -63,7 +64,17 @@ jobs:
           echo "versionBuild=$($version.Build)" >> $env:GITHUB_OUTPUT
 
       - name: Setup wix
-        run: echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" |Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        run: |
+          dotnet.exe tool install --global wix
+
+          wix.exe extension add WixToolset.UI.wixext --global
+
+          Invoke-RestMethod -Uri https://www.nuget.org/api/v2/package/WixToolset.Heat -OutFile .\WixToolset.Heat.nupkg -ErrorAction Stop
+          Expand-Archive .\WixToolset.Heat.nupkg -DestinationPath .\heat -ErrorAction Stop
+          Get-ChildItem -Path .\heat -Recurse |
+            Where-Object { $_.FullName.EndsWith('x64\heat.exe') } |
+            Select-Object -ExpandProperty DirectoryName |
+            Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Download rclone
         run: |
@@ -80,18 +91,57 @@ jobs:
           New-Item -Name build -ItemType Directory -ErrorAction Stop
           Get-ChildItem -Path tmp -Include '*.exe','*.html' -Recurse |Move-Item -Destination ./build -ErrorAction Stop
 
-      - name: Harvest rclone
-        run: heat.exe dir build -nologo -ag -cg ProductComponents -dr INSTALLDIR -g1 -srd -sfrag -sreg -var var.ProductSource -o build\Fragment.wxs
+      - name: Harvest installer
+        run: |
+          heat.exe `
+            dir `
+            build `
+            -nologo `
+            -ag `
+            -cg ProductComponents `
+            -dr INSTALLDIR `
+            -g1 `
+            -srd `
+            -sfrag `
+            -sreg `
+            -var var.ProductSource `
+            -o build\Fragment.wxs
 
-      - name: Compile rclone
-        run: candle.exe -nologo -dProductSource=build -dProductVersion="${{ steps.version.outputs.version }}" -out build\ -arch x64 -ext WixUIExtension.dll build\Fragment.wxs src\Product.wxs
+      - name: Build installer
+        run: |
+          wix.exe `
+            build `
+            -arch x64 `
+            -src build\Fragment.wxs src\Product.wxs `
+            -d ProductSource=build `
+            -d ProductVersion="${{ steps.version.outputs.version }}" `
+            -ext WixToolset.UI.wixext `
+            -out rclone.msi
 
-      - name: Link rclone
-        run: light.exe -nologo -out rclone.msi -ext WixUIExtension.dll -spdb build\Fragment.wixobj build\Product.wixobj
+      - name: Update installer
+        run: |
+          $path = Resolve-Path 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\msiinfo.exe' -ErrorAction Stop
+
+          & $path rclone.msi -t "Rclone for Windows" -o "Rclone v${{ steps.version.outputs.version }}"
+
+      - name: Validate installer
+        run: wix.exe msi validate rclone.msi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: rclone-msi
+          path: ./rclone.msi
+          if-no-files-found: error
 
       - name: Test installer
         run: |
-          Start-Process msiexec.exe -ArgumentList '/i','rclone.msi','/qn' -Wait -NoNewWindow -ErrorAction Stop
+          $process = Start-Process msiexec.exe -ArgumentList '/i','rclone.msi','/qn' -Wait -NoNewWindow -PassThru -ErrorAction Stop
+          if ($process.ExitCode -ne 0)
+          {
+              throw 'Non zero exit code: "{0}".' -f $process.ExitCode
+          }
+
           $path = Join-Path $env:ProgramFiles 'rclone\rclone.exe'
           & $path version
 
