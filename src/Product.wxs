@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
-  <Package Name="rclone" Language="1033" Version="$(var.ProductVersion)" Manufacturer="https://rclone.org" UpgradeCode="1630521d-062d-4ae5-b690-b676c39311a2" InstallerVersion="200">
+  <Package Name="rclone" Language="1033" Version="$(var.ProductVersion)" Manufacturer="https://rclone.org" UpgradeCode="1630521d-062d-4ae5-b690-b676c39311a2">
     <SummaryInformation Description="Rclone is a command line program to manage files on cloud storage." />
-
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <Media Id="1" Cabinet="Data.cab" EmbedCab="yes" CompressionLevel="high" />
 
