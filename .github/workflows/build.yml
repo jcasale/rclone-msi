@@ -51,7 +51,7 @@ jobs:
     if: needs.check.outputs.tag != ''
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set version
         id: version
@@ -128,7 +128,7 @@ jobs:
         run: wix.exe msi validate rclone.msi
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rclone-msi
           path: ./rclone.msi
