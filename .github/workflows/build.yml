@@ -147,8 +147,7 @@ jobs:
           & $path version
 
       - name: Publish release
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: rclone.msi
-          tag: ${{ needs.check.outputs.tag }}
-          body: Rclone Windows build packaged as an msi.
+        run: gh.exe release create ${{ needs.check.outputs.tag }} --notes 'Rclone Windows build packaged as an msi.' rclone.msi
+        env:
+          # Requires a personal access token with a fine-grained permission of contents:read/write.
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
