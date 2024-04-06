@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="rclone" Language="1033" Version="$(var.ProductVersion)" Manufacturer="https://rclone.org" UpgradeCode="1630521d-062d-4ae5-b690-b676c39311a2">
-    <SummaryInformation Description="Rclone is a command line program to manage files on cloud storage." />
+    <SummaryInformation Description="Rclone is a command line program to manage files on cloud storage." Comments="Rclone v$(var.ProductVersion)"/>
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <Media Id="1" Cabinet="Data.cab" EmbedCab="yes" CompressionLevel="high" />
 
@@ -30,6 +30,10 @@
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLDIR" Name="Rclone" />
     </StandardDirectory>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLDIR">
+      <Files Include="$(var.ProductSource)\**" />
+    </ComponentGroup>
 
     <Component Id="EnvironmentPathComponent" Guid="0643d537-f24b-4a0a-9f25-9ae15efc2b78" Directory="INSTALLDIR">
       <Environment Id="UpdatePath" Name="PATH" Action="set" Permanent="no" System="yes" Part="last" Value="[INSTALLDIR]" />
