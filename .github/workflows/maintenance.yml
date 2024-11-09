@@ -27,7 +27,7 @@ jobs:
           $tags |
               Select-Object @{l='tag';e={$_}},@{l='version';e={[version]::new($_.TrimStart('v'))}} |
               Sort-Object version -Descending |
-              Select-Object -Skip 5 |
+              Select-Object -Skip 10 |
               ForEach-Object {
                   Write-Host ('Deleting "{0}".' -f $_.tag)
 
