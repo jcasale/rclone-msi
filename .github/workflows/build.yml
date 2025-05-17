@@ -16,35 +16,61 @@ jobs:
 
     steps:
       - name: Get upstream tag
-        uses: oprypin/find-latest-tag@v1
-        id: upstream_tag
-        with:
-          repository: rclone/rclone
-          releases-only: true
+        id: upstream-tag
+        run: |
+          result=$(gh release list --repo rclone/rclone --limit 1 --exclude-drafts --json tagName --jq '.[] |.tagName')
 
-      - name: Upstream tag ${{ steps.upstream_tag.outputs.tag }}
-        run: echo "Upstream tag ${{ steps.upstream_tag.outputs.tag }}"
+          if [ $? -ne 0 ]
+          then
+            exit $?
+          fi
+
+          echo $result
+
+          echo "tag=$result" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Get downstream tag
-        uses: oprypin/find-latest-tag@v1
-        id: downstream_tag
-        continue-on-error: true
-        with:
-          repository: ${{ github.repository }}
+        id: downstream-tag
+        run: |
+          result=$(gh release list --repo ${{ github.repository_owner }}/${{ github.event.repository.name }} --limit 1 --exclude-drafts --json tagName --jq '.[] |.tagName')
 
-      - name: Downstream tag ${{ steps.downstream_tag.outputs.tag }}
-        run: echo "Downstream tag ${{ steps.downstream_tag.outputs.tag }}"
+          if [ $? -ne 0 ]
+          then
+            exit $?
+          fi
+
+          echo $result
+
+          echo "tag=$result" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Result
         id: result
+        shell: pwsh
         run: |
-          if [[ "${{ steps.upstream_tag.outputs.tag }}" == "${{ steps.downstream_tag.outputs.tag }}" ]]
-          then
-            echo 'Build not required.'
+          $upstreamVersion = [Version]::new('${{ steps.upstream-tag.outputs.tag }}'.TrimStart('v'))
+
+          if ('${{ steps.downstream-tag.outputs.tag }}')
+          {
+            $downstreamVersion = [Version]::new('${{ steps.downstream-tag.outputs.tag }}'.TrimStart('v'))
+          }
           else
+          {
+            $downstreamVersion = [Version]::new()
+          }
+
+          if ($upstreamVersion -gt $downstreamVersion)
+          {
             echo 'Build is required.'
-            echo tag=${{ steps.upstream_tag.outputs.tag }} >> $GITHUB_OUTPUT
-          fi
+            "tag=${{ steps.upstream-tag.outputs.tag }}" >> $env:GITHUB_OUTPUT
+          }
+          else
+          {
+            echo 'Build not required.'
+          }
 
   build:
     runs-on: windows-latest
