@@ -74,6 +74,8 @@ jobs:
 
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
     timeout-minutes: 10
     needs: check
     if: needs.check.outputs.tag != ''
@@ -104,7 +106,7 @@ jobs:
           gh.exe release download ${{ needs.check.outputs.tag }} --pattern '*-windows-amd64.zip' --repo rclone/rclone
           Get-ChildItem
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Extract rclone
         run: |
@@ -149,5 +151,4 @@ jobs:
       - name: Publish release
         run: gh.exe release create ${{ needs.check.outputs.tag }} --notes 'Rclone Windows build packaged as an msi.' rclone.msi
         env:
-          # Requires a personal access token with a fine-grained permission of contents:read/write.
-          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
