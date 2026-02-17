@@ -12,14 +12,6 @@
       </Feature>
     </Feature>
 
-    <UI>
-      <ui:WixUI Id="WixUI_FeatureTree_NoLicense" />
-    </UI>
-
-    <StandardDirectory Id="ProgramFiles6432Folder">
-      <Directory Id="INSTALLFOLDER" Name="Rclone" />
-    </StandardDirectory>
-
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
       <Files Include="$(var.ProductSource)\**" />
     </ComponentGroup>
@@ -27,7 +19,15 @@
     <Component Id="EnvironmentPathComponent" Guid="0643d537-f24b-4a0a-9f25-9ae15efc2b78" Directory="INSTALLFOLDER">
       <Environment Id="UpdatePath" Name="PATH" Action="set" Permanent="no" System="yes" Part="last" Value="[INSTALLFOLDER]" />
     </Component>
+
+    <ui:WixUI Id="WixUI_FeatureTree_NoLicense" />
   </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="Rclone" />
+    </StandardDirectory>
+  </Fragment>
 
   <?foreach WIXUIARCH in X86;X64;A64?>
     <Fragment>
