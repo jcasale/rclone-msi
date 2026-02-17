@@ -3,7 +3,6 @@ name: build
 on:
   schedule:
     - cron: "42 6 * * *"
-
   workflow_dispatch:
 
 jobs:
@@ -12,7 +11,7 @@ jobs:
     timeout-minutes: 5
 
     outputs:
-      tag: ${{ steps.result.outputs.tag }}
+      tag: ${{ steps.result.outputs.value }}
 
     steps:
       - name: Get upstream tag
@@ -25,9 +24,7 @@ jobs:
             exit $?
           fi
 
-          echo $result
-
-          echo "tag=$result" >> "$GITHUB_OUTPUT"
+          echo "value=$result" |tee -a "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -41,9 +38,7 @@ jobs:
             exit $?
           fi
 
-          echo $result
-
-          echo "tag=$result" >> "$GITHUB_OUTPUT"
+          echo "value=$result" |tee -a "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -51,11 +46,11 @@ jobs:
         id: result
         shell: pwsh
         run: |
-          $upstreamVersion = [Version]::new('${{ steps.upstream-tag.outputs.tag }}'.TrimStart('v'))
+          $upstreamVersion = [Version]::new('${{ steps.upstream-tag.outputs.value }}'.TrimStart('v'))
 
-          if ('${{ steps.downstream-tag.outputs.tag }}')
+          if ('${{ steps.downstream-tag.outputs.value }}')
           {
-            $downstreamVersion = [Version]::new('${{ steps.downstream-tag.outputs.tag }}'.TrimStart('v'))
+            $downstreamVersion = [Version]::new('${{ steps.downstream-tag.outputs.value }}'.TrimStart('v'))
           }
           else
           {
@@ -65,7 +60,7 @@ jobs:
           if ($upstreamVersion -gt $downstreamVersion)
           {
             echo 'Build is required.'
-            "tag=${{ steps.upstream-tag.outputs.tag }}" >> $env:GITHUB_OUTPUT
+            'value=${{ steps.upstream-tag.outputs.value }}' |Tee-Object -FilePath $env:GITHUB_OUTPUT -Append
           }
           else
           {
@@ -86,19 +81,17 @@ jobs:
       - name: Set version
         id: version
         run: |
-          $tag = "${{ needs.check.outputs.tag }}".TrimStart("v")
+          $tag = '${{ needs.check.outputs.tag }}'.TrimStart('v')
           $version = [version]::new($tag)
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "versionMajor=$($version.Major)" >> $env:GITHUB_OUTPUT
-          echo "versionMinor=$($version.Minor)" >> $env:GITHUB_OUTPUT
-          echo "versionBuild=$($version.Build)" >> $env:GITHUB_OUTPUT
+          'version={0}' -f $version |Tee-Object -FilePath $env:GITHUB_OUTPUT -Append
+          'major={0}' -f $version.Major |Tee-Object -FilePath $env:GITHUB_OUTPUT -Append
+          'minor={0}' -f $version.Minor |Tee-Object -FilePath $env:GITHUB_OUTPUT -Append
+          'build={0}' -f $version.Build |Tee-Object -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Setup wix
         run: |
-          dotnet.exe tool install --global wix --version 6.0.2 --verbosity diag
-
+          dotnet.exe tool install --global wix --version 6.0.2
           wix.exe extension add WixToolset.UI.wixext/6.0.2 --global
-          wix.exe extension add WixToolset.Util.wixext/6.0.2 --global
           wix.exe extension list --global
 
       - name: Download rclone
@@ -114,7 +107,7 @@ jobs:
           Expand-Archive -Path '*-windows-amd64.zip' -DestinationPath tmp -ErrorAction Stop
           Get-ChildItem -Path tmp -Recurse
           New-Item -Name build -ItemType Directory -ErrorAction Stop |Out-Null
-          Get-ChildItem -Path tmp -Include '*.exe','*.html' -Recurse |Move-Item -Destination ./build -ErrorAction Stop
+          Move-Item .\tmp\*\README.txt,.\tmp\*\*.exe,.\tmp\*\*.html .\build -ErrorAction Stop
 
       - name: Build installer
         run: |
@@ -149,6 +142,6 @@ jobs:
           & $path version
 
       - name: Publish release
-        run: gh.exe release create ${{ needs.check.outputs.tag }} --notes 'Rclone Windows build packaged as an msi.' rclone.msi
+        run: gh.exe release create ${{ needs.check.outputs.tag }} --title ${{ needs.check.outputs.tag }} --notes 'Rclone Windows build packaged as an msi.' rclone.msi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
