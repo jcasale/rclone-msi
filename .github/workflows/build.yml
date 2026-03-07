@@ -11,69 +11,62 @@ jobs:
     timeout-minutes: 5
 
     outputs:
-      tag: ${{ steps.result.outputs.value }}
+      tag: ${{ steps.remote-tag.outputs.value }}
+      publish: ${{ steps.publish.outputs.value }}
 
     steps:
-      - name: Get upstream tag
-        id: upstream-tag
+      - name: Get remote tag
+        id: remote-tag
         run: |
-          result=$(gh release list --repo rclone/rclone --limit 1 --exclude-drafts --json tagName --jq '.[] |.tagName')
+          tag=$(gh release list --repo rclone/rclone --limit 1 --exclude-drafts --json tagName --jq '.[] |.tagName')
 
           if [ $? -ne 0 ]
           then
             exit $?
           fi
 
-          echo "value=$result" |tee -a "$GITHUB_OUTPUT"
+          echo "value=$tag" |tee -a "$GITHUB_OUTPUT"
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get downstream tag
-        id: downstream-tag
+      - name: Get local tag
+        id: local-tag
         run: |
-          result=$(gh release list --repo ${{ github.repository_owner }}/${{ github.event.repository.name }} --limit 1 --exclude-drafts --json tagName --jq '.[] |.tagName')
+          tag=$(gh release list --repo ${{ github.repository_owner }}/${{ github.event.repository.name }} --limit 1 --exclude-drafts --json tagName --jq '.[] |.tagName')
 
           if [ $? -ne 0 ]
           then
             exit $?
           fi
 
-          echo "value=$result" |tee -a "$GITHUB_OUTPUT"
+          echo "value=$tag" |tee -a "$GITHUB_OUTPUT"
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Result
-        id: result
+      - name: Set publish condition
+        id: publish
         shell: pwsh
         run: |
-          $upstreamVersion = [Version]::new('${{ steps.upstream-tag.outputs.value }}'.TrimStart('v'))
+          $remoteVersion = [Version]::new('${{ steps.remote-tag.outputs.value }}'.TrimStart('v'))
 
-          if ('${{ steps.downstream-tag.outputs.value }}')
+          if ('${{ steps.local-tag.outputs.value }}')
           {
-            $downstreamVersion = [Version]::new('${{ steps.downstream-tag.outputs.value }}'.TrimStart('v'))
+            $localVersion = [Version]::new('${{ steps.local-tag.outputs.value }}'.TrimStart('v'))
           }
           else
           {
-            $downstreamVersion = [Version]::new()
+            $localVersion = [Version]::new()
           }
 
-          if ($upstreamVersion -gt $downstreamVersion)
-          {
-            echo 'Build is required.'
-            'value=${{ steps.upstream-tag.outputs.value }}' |Tee-Object -FilePath $env:GITHUB_OUTPUT -Append
-          }
-          else
-          {
-            echo 'Build not required.'
-          }
+          $required = $remoteVersion -gt $localVersion
+          'value={0}' -f $required |Tee-Object -FilePath $env:GITHUB_OUTPUT -Append
 
   build:
     runs-on: windows-latest
     permissions:
       contents: write
-    timeout-minutes: 10
+    timeout-minutes: 5
     needs: check
-    if: needs.check.outputs.tag != ''
 
     steps:
       - uses: actions/checkout@v6
@@ -124,9 +117,9 @@ jobs:
         run: wix.exe msi validate rclone.msi
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
-          name: rclone-msi
+          archive: false
           path: ./rclone.msi
           if-no-files-found: error
 
@@ -142,6 +135,7 @@ jobs:
           & $path version
 
       - name: Publish release
+        if: needs.check.outputs.publish == 'True'
         run: gh.exe release create ${{ needs.check.outputs.tag }} --title ${{ needs.check.outputs.tag }} --notes 'Rclone Windows build packaged as an msi.' rclone.msi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
