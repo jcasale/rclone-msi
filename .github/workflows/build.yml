@@ -83,9 +83,9 @@ jobs:
 
       - name: Setup wix
         run: |
-          dotnet tool install wix --version 7.0.0 --global
+          dotnet tool install wix --version 7.0.1 --global
           wix eula accept wix7
-          wix extension add WixToolset.UI.wixext/7.0.0
+          wix extension add WixToolset.UI.wixext/7.0.1
 
       - name: Download rclone
         run: |
